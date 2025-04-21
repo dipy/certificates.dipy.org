@@ -3,3 +3,5 @@ uvicorn[standard]>=0.20.0,<1.0.0
 python-multipart>=0.0.6,<1.0.0  # Needed for Form data
 jinja2>=3.1.0,<4.0.0
 rapidfuzz>=3.13,<4.0.0 # Optional but improves thefuzz speed
+supervisor>=4.2.5,<5.0.0
+gunicorn>=23.0.0,<24.0.0

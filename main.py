@@ -27,13 +27,19 @@ STATIC_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(exist_ok=True)
 
 # --- FastAPI App Setup ---
-app = FastAPI(title="DIPY Certificate Server")
+app = FastAPI(title="DIPY Certificate Server", root_path="/certificates")
 
 # Mount static files directory
-app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+app.mount("/certificates/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+
+def root_url_for(request: Request, name: str, **params):
+    # return request.scope["root_path"] + str(request.url_for(name, **params))
+    return str(request.url_for(name, **params))
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
+templates.env.globals["root_url_for"] = root_url_for
 
 
 # --- Helper Functions ---
@@ -121,6 +127,12 @@ def find_certificate(
 
 
 # --- Routes ---
+
+@app.get("/certificates/")
+def read_cert():
+    return {"message": "Hello from FastAPI!"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def get_homepage(request: Request):
     """
@@ -147,7 +159,7 @@ async def get_homepage(request: Request):
     return templates.TemplateResponse("index.html", context)
 
 
-@app.post("/search", response_class=HTMLResponse)
+@app.post("/search", name="search", response_class=HTMLResponse)
 async def search_certificates(
     request: Request,
     search_query: str = Form(..., max_length=100),  # Added max_length
@@ -218,7 +230,7 @@ async def search_certificates(
     )
 
 
-@app.get("/download/{year}/{name_stem}.pdf")
+@app.get("/download/{year}/{name_stem}.pdf", name="download_certificate")
 async def download_certificate(year: str, name_stem: str):
     """
     Serve a specific certificate file for download, ensuring year match.
@@ -263,7 +275,7 @@ async def download_certificate(year: str, name_stem: str):
     )
 
 
-@app.get("/view/{year}/{name_stem}.pdf")
+@app.get("/view/{year}/{name_stem}.pdf", name="view_certificate")
 async def view_certificate(year: str, name_stem: str):
     """
     Serve a specific certificate file for viewing, ensuring year match.
