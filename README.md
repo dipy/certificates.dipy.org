@@ -5,15 +5,25 @@ Small webapp to manage DIPY certificates from the workshop
 
 ## Instructions for IU server
 
-activate environment
-> source activate venv312
-install new package
-> uv pip install -r requirement.txt
-start the app
-> ~/path/to/supervisor/supervisord -c supervisord.conf
-control the app
-> supervisorctl restart/start/stop/status fastapi
+Activate environment
+```terminal
+source activate venv312
+```
+Install new package
+```terminal
+uv pip install -r requirement.txt
+```
+Start the app
+```terminal
+~/path/to/supervisor/supervisord -c supervisord.conf
+```
+Control the app
+```terminal
+supervisorctl restart/start/stop/status fastapi
+```
 
 ## Create new environment
 
+```terminal
 uv venv venv312 --python 3.12
+```
