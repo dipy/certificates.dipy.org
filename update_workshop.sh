@@ -15,7 +15,7 @@ conda activate workshop-env
 cd /home/dipy/workshop.dipy.org
 git pull
 make -C . html
-cp -R _build/* www
+cp -R _build/html/* www
 
 echo "Update completed" >> $LOG_FILE
 echo "Workshop update completed"

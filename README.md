@@ -22,6 +22,13 @@ Control the app
 supervisorctl restart/start/stop/status fastapi
 ```
 
+In case of an update of supervisord.conf, restart supervisor:
+```
+supervisorctl reread
+supervisorctl update
+supervisorctl restart fastapi
+```
+
 ## Create new environment
 
 ```terminal

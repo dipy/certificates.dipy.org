@@ -330,11 +330,11 @@ async def _run_update_script(script_path: pathlib.Path, webhook_name: str):
     try:
         result = subprocess.run(
             ["stdbuf", "-oL", str(script_path.absolute())],
-            capture_output=True,
-            text=True,
+            # capture_output=True,
+            # text=True,
             check=True
         )
-        print(f"Update script output ({script_path.name}): {result.stdout}")
+        print(f"Update script output ({script_path.name})")  # : {result.stdout}")
         return JSONResponse(
             content={
                 "status": "success",
