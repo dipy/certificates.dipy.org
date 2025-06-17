@@ -329,7 +329,7 @@ async def view_certificate_page(year: str, name_stem: str):
 async def _run_update_script(script_path: pathlib.Path, webhook_name: str):
     try:
         result = subprocess.run(
-            [str(script_path.absolute())],
+            ["stdbuf", "-oL", str(script_path.absolute())],
             capture_output=True,
             text=True,
             check=True
@@ -384,6 +384,16 @@ async def _process_github_event(
     event_type = request.headers.get("X-GitHub-Event")
     action = payload.get("action")
 
+    if event_type == "ping":
+        # Respond to GitHub ping event for webhook setup/test
+        return JSONResponse(
+            content={
+                "status": "ok",
+                "message": f"Ping event received for {webhook_name}",
+                "zen": payload.get("zen", "")
+            }
+        )
+
     if event_type == "pull_request" and action == "closed":
         if payload.get("pull_request", {}).get("merged"):
             base_branch = payload.get("pull_request", {}).get("base", {}).get("ref")
@@ -425,7 +435,7 @@ async def github_webhook_workshop(
 ):
     payload = await _verify_github_signature_and_parse(request, x_hub_signature_256)
     return await _process_github_event(
-        request, payload, UPDATE_WORKSHOP_SCRIPT_PATH, "Workshop Materials"
+        request, payload, UPDATE_WORKSHOP_SCRIPT_PATH, "Workshop Website"
     )
 
 # Include the routers in the main app
