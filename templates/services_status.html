@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>DIPY Services Status</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 2em; }
+        h1 { color: #2c3e50; }
+        ul { list-style-type: none; padding: 0; }
+        li { margin-bottom: 1em; }
+        .service {
+            background: #f4f4f4;
+            border-radius: 6px;
+            padding: 1em;
+            box-shadow: 0 1px 2px #ddd;
+        }
+        .service strong { color: #2980b9; }
+    </style>
+</head>
+<body>
+    <h1>DIPY Services Status</h1>
+    <ul>
+        <li class="service">
+            <strong>Certificates Service</strong><br>
+            <code>/services/certificates/</code><br>
+            Search and download certificates.
+        </li>
+        <li class="service">
+            <strong>Webhooks - Lab Website</strong><br>
+            <code>/services/webhooks/lab</code><br>
+            GitHub webhook for updating the lab static website.
+        </li>
+        <li class="service">
+            <strong>Webhooks - Workshop Materials</strong><br>
+            <code>/services/webhooks/workshop</code><br>
+            GitHub webhook for updating workshop static website.
+        </li>
+    </ul>
+    <p>Status: <span style="color: green; font-weight: bold;">OK</span></p>
+</body>
+</html>

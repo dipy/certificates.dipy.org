@@ -1,13 +1,23 @@
+from dotenv import load_dotenv
 import pathlib
 import uvicorn
 import re  # Import regex module
-from fastapi import FastAPI, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse, FileResponse
+from fastapi import FastAPI, Request, Form, HTTPException, Header, APIRouter
+from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from typing import Optional
 import urllib.parse
 from rapidfuzz import fuzz
+import hmac
+import hashlib
+import json
+import subprocess
+import os
+
+
+# Load environment variables from the .env file
+load_dotenv()
 
 # --- Configuration ---
 CERTIFICATES_DIR = pathlib.Path("certificates")
@@ -18,24 +28,30 @@ LINKEDIN_CERT_URL = (
     "https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME"
 )
 ORGANIZATION_ID = "18898741"  # DIPY LinkedIn Organization ID
-# ISSUE_YEAR = "2023"  # Default Issue Year - No longer needed
 ISSUE_MONTH = "5"      # Default Issue Month - Still used for LinkedIn link
 
-# Create directories if they don't exist (optional, good practice)
+# GitHub webhook settings
+GITHUB_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET")
+UPDATE_LAB_SCRIPT_PATH = pathlib.Path("update_lab_website.sh")
+UPDATE_WORKSHOP_SCRIPT_PATH = pathlib.Path("update_workshop.sh")
+
+# Create directories if they don't exist
 CERTIFICATES_DIR.mkdir(exist_ok=True)
 STATIC_DIR.mkdir(exist_ok=True)
 TEMPLATES_DIR.mkdir(exist_ok=True)
 
 # --- FastAPI App Setup ---
-app = FastAPI(title="DIPY Certificate Server", root_path="/certificates")
+app = FastAPI(title="DIPY Services server")
 
-# Mount static files directory
-app.mount("/certificates/static", StaticFiles(directory=STATIC_DIR), name="static")
+# Create routers for different services
+# Prefixes here will be combined with the prefix in app.include_router
+certificates_router = APIRouter(prefix="/certificates", tags=["certificates"])
+webhooks_router = APIRouter(prefix="/webhooks", tags=["webhooks"])
 
 
 def root_url_for(request: Request, name: str, **params):
-    # return request.scope["root_path"] + str(request.url_for(name, **params))
     return str(request.url_for(name, **params))
+
 
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
@@ -126,30 +142,16 @@ def find_certificate(
         return None
 
 
-# --- Routes ---
+# --- Certificate Routes ---
+@certificates_router.get("/healthcheck")
+def certificates_healthcheck():
+    return {"message": "Hello from FastAPI Certificates Service!"}
 
-@app.get("/certificates/")
-def read_cert():
-    return {"message": "Hello from FastAPI!"}
 
-
-@app.get("/", response_class=HTMLResponse)
-async def get_homepage(request: Request):
+@certificates_router.get("/", response_class=HTMLResponse)
+async def get_certificates_homepage(request: Request):  # Renamed for clarity
     """
-    Serve the homepage.
-
-    Renders the main index.html template which includes the
-    welcome message, logo, and search bar.
-
-    Parameters
-    ----------
-    request : Request
-        The incoming request object.
-
-    Returns
-    -------
-    HTMLResponse
-        The rendered HTML page.
+    Serve the homepage for certificates.
     """
     context = {
         "request": request,
@@ -159,11 +161,12 @@ async def get_homepage(request: Request):
     return templates.TemplateResponse("index.html", context)
 
 
-@app.post("/search", name="search", response_class=HTMLResponse)
-async def search_certificates(
+@certificates_router.post("/search", name="search_certificates_page",
+                          response_class=HTMLResponse)
+async def search_certificates_page(  # Renamed for clarity
     request: Request,
-    search_query: str = Form(..., max_length=100),  # Added max_length
-    search_year: str = Form(..., max_length=4)      # Added max_length
+    search_query: str = Form(..., max_length=100),
+    search_year: str = Form(..., max_length=4)
 ):
     """
     Handle the certificate search request from the homepage.
@@ -195,12 +198,11 @@ async def search_certificates(
     if certificate_name:
         # Generate absolute URL for the certificate view page on this server
         try:
-            # Use the name stem and the validated search_year for the URL
             cert_page_url = request.url_for(
-                'view_certificate', year=search_year, name_stem=certificate_name
+                'view_certificate_page', year=search_year, name_stem=certificate_name
             )
         except Exception as e:
-            print(f"Error generating URL for view_certificate: {e}")
+            print(f"Error generating URL for view_certificate_page: {e}")
             cert_page_url = ""  # Handle error case
 
         # Prepare parameters for LinkedIn URL
@@ -225,13 +227,16 @@ async def search_certificates(
             "linkedin_url": linkedin_url,
             "not_found": certificate_path is None,
             "query": search_query,   # Keep original query for display
-            "year": search_year      # Pass year for download/view links
+            "year": search_year,      # Pass year for download/view links
+            "router_prefix": certificates_router.prefix  # Pass router prefix
         },
     )
 
 
-@app.get("/download/{year}/{name_stem}.pdf", name="download_certificate")
-async def download_certificate(year: str, name_stem: str):
+@certificates_router.get(
+    "/download/{year}/{name_stem}.pdf", name="download_certificate_file"
+)
+async def download_certificate_file(year: str, name_stem: str):  # Renamed
     """
     Serve a specific certificate file for download, ensuring year match.
 
@@ -271,12 +276,12 @@ async def download_certificate(year: str, name_stem: str):
         path=certificate_path,
         filename=certificate_path.name,
         media_type='application/pdf',
-        content_disposition_type="attachment"  # Suggest download
+        content_disposition_type="attachment"
     )
 
 
-@app.get("/view/{year}/{name_stem}.pdf", name="view_certificate")
-async def view_certificate(year: str, name_stem: str):
+@certificates_router.get("/view/{year}/{name_stem}.pdf", name="view_certificate_page")
+async def view_certificate_page(year: str, name_stem: str):
     """
     Serve a specific certificate file for viewing, ensuring year match.
 
@@ -320,13 +325,143 @@ async def view_certificate(year: str, name_stem: str):
     )
 
 
+# --- Webhook Helper Functions ---
+async def _run_update_script(script_path: pathlib.Path, webhook_name: str):
+    try:
+        result = subprocess.run(
+            [str(script_path.absolute())],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        print(f"Update script output ({script_path.name}): {result.stdout}")
+        return JSONResponse(
+            content={
+                "status": "success",
+                "message": f"{webhook_name} updated successfully"
+            }
+        )
+    except subprocess.CalledProcessError as e:
+        print(f"Error running update script ({script_path.name}): {e.stderr}")
+        return JSONResponse(
+            content={
+                "status": "error",
+                "message": f"Script error for {webhook_name}: {e.stderr}"
+            },
+            status_code=500
+        )
+
+
+async def _verify_github_signature_and_parse(
+    request: Request, x_hub_signature_256: Optional[str]
+):
+    payload_bytes = await request.body()
+    if GITHUB_SECRET:
+        if not x_hub_signature_256:
+            raise HTTPException(
+                status_code=401, detail="Missing X-Hub-Signature-256 header")
+        signature = hmac.new(
+            GITHUB_SECRET.encode(),
+            msg=payload_bytes,
+            digestmod=hashlib.sha256
+        ).hexdigest()
+        expected_signature = f"sha256={signature}"
+        if not hmac.compare_digest(expected_signature, x_hub_signature_256):
+            raise HTTPException(status_code=401, detail="Invalid signature")
+    try:
+        payload = json.loads(payload_bytes)
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail="Invalid JSON payload")
+    return payload
+
+
+async def _process_github_event(
+    request: Request,
+    payload: dict,
+    script_path: pathlib.Path,
+    webhook_name: str
+):
+    event_type = request.headers.get("X-GitHub-Event")
+    action = payload.get("action")
+
+    if event_type == "pull_request" and action == "closed":
+        if payload.get("pull_request", {}).get("merged"):
+            base_branch = payload.get("pull_request", {}).get("base", {}).get("ref")
+            if base_branch in ["main", "master"]:
+                return await _run_update_script(script_path, webhook_name)
+    elif event_type == "push":
+        ref = payload.get("ref")
+        if ref in ["refs/heads/main", "refs/heads/master"]:
+            return await _run_update_script(script_path, webhook_name)
+
+    return JSONResponse(
+        content={
+            "status": "ignored",
+            "message":
+                f"Event {event_type} (action: {action}) ignored for {webhook_name}"
+        }
+    )
+
+
+# --- Webhook Endpoints ---
+@webhooks_router.get("/healthcheck")
+def webhook_healthcheck():
+    return {"message": "Hello from FastAPI Webhook Service!"}
+
+
+@webhooks_router.post("/lab", response_class=JSONResponse)
+async def github_webhook_lab(
+    request: Request, x_hub_signature_256: Optional[str] = Header(None)
+):
+    payload = await _verify_github_signature_and_parse(request, x_hub_signature_256)
+    return await _process_github_event(
+        request, payload, UPDATE_LAB_SCRIPT_PATH, "Lab Website"
+    )
+
+
+@webhooks_router.post("/workshop", response_class=JSONResponse)
+async def github_webhook_workshop(
+    request: Request, x_hub_signature_256: Optional[str] = Header(None)
+):
+    payload = await _verify_github_signature_and_parse(request, x_hub_signature_256)
+    return await _process_github_event(
+        request, payload, UPDATE_WORKSHOP_SCRIPT_PATH, "Workshop Materials"
+    )
+
+# Include the routers in the main app
+# All routes in certificates_router will be prefixed with /services
+# e.g. /services/certificates/home
+app.include_router(certificates_router, prefix="/services")
+# All routes in webhooks_router will be prefixed with /services
+# e.g. /services/webhooks/lab
+app.include_router(webhooks_router, prefix="/services")
+
+
+@app.get("/services", response_class=HTMLResponse)
+async def services_status(request: Request):
+    """
+    Return a static status page listing all available services (API routers).
+    """
+    return templates.TemplateResponse("services_status.html", {"request": request})
+
+
+@app.get("/")
+def root_redirect():
+    return RedirectResponse(url="/services")
+
+
+# Mount static files for certificates
+app.mount(
+    "/services/certificates/static",
+    StaticFiles(directory=STATIC_DIR),
+    name="certificates_static"
+)
+
 # --- Main Execution ---
 if __name__ == "__main__":
-    # IMPORTANT: Disable reload=True in production environments!
     print(f"Starting server. Certificates expected in: {CERTIFICATES_DIR.resolve()}")
     print(f"Static files served from: {STATIC_DIR.resolve()}")
     print(f"Templates loaded from: {TEMPLATES_DIR.resolve()}")
-    # Make sure certificate dir exists
     if not CERTIFICATES_DIR.exists():
         print(
             f"Warning: Certificate directory '{CERTIFICATES_DIR}' not found. "
@@ -337,4 +472,4 @@ if __name__ == "__main__":
 
     uvicorn.run(
         "main:app", host="0.0.0.0", port=8000, reload=False
-    )  # Set reload=False for production
+    )

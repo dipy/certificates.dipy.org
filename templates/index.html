@@ -14,7 +14,7 @@
             justify-content: center;
             min-height: 90vh;
             /* Add background image - replace with your actual image path */
-            background-image: url({{ request.url_for('static', path='tiny_gray_brain.png') }});
+            background-image: url({{ request.url_for('certificates_static', path='tiny_gray_brain.png') }});
             background-repeat: repeat; /* Tile the image */
             background-color: #f4f4f4; /* Fallback color */
             color: #333;
@@ -159,12 +159,12 @@
 </head>
 <body>
     <div class="container">
-        <img src="{{ request.url_for('static', path='dipy_logo.png') }}" alt="DIPY Logo" class="logo">
+        <img src="{{ request.url_for('certificates_static', path='dipy_logo.png') }}" alt="DIPY Logo" class="logo">
         <h1>Find my DIPY Certificates</h1>
 
         <!-- Search Form -->
         <form
-            hx-post="{{ root_url_for(request, 'search') }}"
+            hx-post="{{ root_url_for(request, 'search_certificates_page') }}"
             hx-trigger="submit"
             hx-target="#search-results"
             hx-swap="innerHTML"
