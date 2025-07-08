@@ -1,0 +1,82 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DIPY Sponsorship - Thank You!</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        body { background: #f3f4f6; }
+        .confetti-piece {
+            position: absolute;
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            opacity: 0.7;
+            pointer-events: none;
+        }
+        .dipy-orange {
+            color: #FD8D25;
+        }
+        .bg-dipy-orange {
+            background-color: #FD8D25;
+        }
+        .border-dipy-orange {
+            border-color: #FD8D25;
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen bg-gray-100">
+    <div class="bg-white rounded-xl shadow-lg p-10 max-w-lg w-full text-center relative border-t-8 border-dipy-orange">
+        <div id="confetti-container"></div>
+        <img src="/services/certificates/static/dipy_logo.png" alt="DIPY Logo" class="mx-auto mb-4" style="max-width: 120px;">
+        <svg class="mx-auto mb-4" width="64" height="64" fill="none" viewBox="0 0 64 64">
+            <circle cx="32" cy="32" r="32" fill="#34d399"/>
+            <path d="M20 34l8 8 16-16" stroke="#fff" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        <h1 class="text-3xl font-bold  mb-2">Thank You for Sponsoring DIPY!</h1>
+        <p class="text-lg text-gray-700 mb-4">🎉 Your support helps us advance open-source medical imaging research and education worldwide.</p>
+        <ul class="text-left text-gray-600 mb-6 space-y-2 mx-auto max-w-md">
+            <li>✔️ Accelerate new features and improvements in DIPY</li>
+            <li>✔️ Support workshops, documentation, and community events</li>
+            <li>✔️ Recognition as a valued sponsor</li>
+            <li>✔️ Help keep DIPY free and open for everyone</li>
+        </ul>
+        <a href="/services/sponsors" class="inline-block bg-dipy-orange hover:bg-blue-700 text-white font-bold py-3 px-8 rounded-lg transition-colors text-lg">Back to Home</a>
+        <div class="mt-6 text-gray-400 text-sm">If you have any questions, contact us at <a href="mailto:info@dipy.org" class="underline">info@dipy.org</a></div>
+        {% if is_error %}
+        <div class="mt-4 text-red-600 font-semibold">{{ message }}</div>
+        {% endif %}
+    </div>
+    <script>
+    // Confetti animation
+    function randomColor() {
+        const colors = ['#FD8D25', '#fbbf24', '#60a5fa', '#f472b6', '#a78bfa', '#f87171'];
+        return colors[Math.floor(Math.random() * colors.length)];
+    }
+    function createConfettiPiece() {
+        const piece = document.createElement('div');
+        piece.className = 'confetti-piece';
+        piece.style.background = randomColor();
+        piece.style.left = Math.random() * 100 + 'vw';
+        piece.style.top = '-20px';
+        piece.style.opacity = 0.7 + Math.random() * 0.3;
+        piece.style.transform = `rotate(${Math.random() * 360}deg)`;
+        document.body.appendChild(piece);
+        // Animate
+        const duration = 2000 + Math.random() * 2000;
+        piece.animate([
+            { transform: piece.style.transform, top: piece.style.top },
+            { transform: `rotate(${Math.random() * 360}deg)`, top: '100vh' }
+        ], { duration, easing: 'ease-in' });
+        setTimeout(() => piece.remove(), duration);
+    }
+    function launchConfetti() {
+        for (let i = 0; i < 60; i++) {
+            setTimeout(createConfettiPiece, i * 30);
+        }
+    }
+    window.onload = launchConfetti;
+    </script>
+</body>
+</html> 
