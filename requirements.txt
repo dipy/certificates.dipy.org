@@ -6,3 +6,10 @@ rapidfuzz>=3.13,<4.0.0 # Optional but improves thefuzz speed
 supervisor>=4.2.5,<5.0.0
 gunicorn>=23.0.0,<24.0.0
 python-dotenv>=1.1.0,<2.0.0
+# Authentication dependencies
+httpx>=0.24.0,<1.0.0  # For OAuth requests
+python-jose[cryptography]>=3.3.0,<4.0.0  # For JWT tokens
+passlib[bcrypt]>=1.7.4,<2.0.0  # For password hashing
+sqlalchemy>=2.0.0,<3.0.0  # For database ORM
+aiosqlite>=0.19.0,<1.0.0  # Async SQLite support
+greenlet>=3.2.3  # For asyncio support

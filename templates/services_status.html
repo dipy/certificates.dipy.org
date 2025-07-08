@@ -1,40 +1,289 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>DIPY Services Status</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 2em; }
-        h1 { color: #2c3e50; }
-        ul { list-style-type: none; padding: 0; }
-        li { margin-bottom: 1em; }
-        .service {
-            background: #f4f4f4;
-            border-radius: 6px;
-            padding: 1em;
-            box-shadow: 0 1px 2px #ddd;
-        }
-        .service strong { color: #2980b9; }
-    </style>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
 </head>
-<body>
-    <h1>DIPY Services Status</h1>
-    <ul>
-        <li class="service">
-            <strong>Certificates Service</strong><br>
-            <code>/services/certificates/</code><br>
-            Search and download certificates.
-        </li>
-        <li class="service">
-            <strong>Webhooks - Lab Website</strong><br>
-            <code>/services/webhooks/lab</code><br>
-            GitHub webhook for updating the lab static website.
-        </li>
-        <li class="service">
-            <strong>Webhooks - Workshop Materials</strong><br>
-            <code>/services/webhooks/workshop</code><br>
-            GitHub webhook for updating workshop static website.
-        </li>
-    </ul>
-    <p>Status: <span style="color: green; font-weight: bold;">OK</span></p>
+<body class="bg-gray-50 text-gray-800">
+    <div class="container mx-auto px-4 py-8">
+        <!-- Header -->
+        <div class="text-center mb-12">
+            <div class="flex items-center justify-center mb-4">
+                <img src="/services/certificates/static/dipy_logo.png" alt="DIPY Logo" class="h-16 w-auto mr-4">
+                <h1 class="text-4xl font-bold text-gray-800">DIPY Services</h1>
+            </div>
+            <p class="text-xl text-gray-600">All services are operational and ready to serve the community</p>
+        </div>
+
+        <!-- Services Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Certificates Service -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-blue-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-certificate text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">Certificates</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">Search and download DIPY workshop certificates by name and year.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-blue-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/certificates/</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-search text-green-500 mr-2"></i>
+                            <span>Certificate search</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-download text-purple-500 mr-2"></i>
+                            <span>PDF downloads</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <a href="/services/certificates/" class="inline-flex items-center bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            Access Service
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Sponsors Service -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-green-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-heart text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">Sponsors</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">Support DIPY through individual or team sponsorships with secure payments.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-green-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/sponsors/</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-credit-card text-green-500 mr-2"></i>
+                            <span>FlexPay integration</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-users text-green-500 mr-2"></i>
+                            <span>OAuth authentication</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-file-invoice text-green-500 mr-2"></i>
+                            <span>Invoice management</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <a href="/services/sponsors/" class="inline-flex items-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                            <i class="fas fa-external-link-alt mr-2"></i>
+                            Become a Sponsor
+                        </a>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Authentication Service -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-purple-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-shield-alt text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">Authentication</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">Secure OAuth authentication with GitHub, Google, and LinkedIn.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-purple-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/auth/</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fab fa-github text-purple-500 mr-2"></i>
+                            <span>GitHub OAuth</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fab fa-google text-purple-500 mr-2"></i>
+                            <span>Google OAuth</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fab fa-linkedin text-purple-500 mr-2"></i>
+                            <span>LinkedIn OAuth</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <span class="inline-flex items-center bg-gray-100 text-gray-600 font-medium py-2 px-4 rounded-lg">
+                            <i class="fas fa-lock mr-2"></i>
+                            Integrated Service
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Lab Webhooks -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-orange-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-flask text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">Lab Webhooks</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">GitHub webhook for updating the lab static website automatically.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-orange-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/webhooks/lab</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fab fa-github text-orange-500 mr-2"></i>
+                            <span>GitHub integration</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-sync text-orange-500 mr-2"></i>
+                            <span>Auto deployment</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <span class="inline-flex items-center bg-gray-100 text-gray-600 font-medium py-2 px-4 rounded-lg">
+                            <i class="fas fa-cog mr-2"></i>
+                            System Service
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workshop Webhooks -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-teal-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-chalkboard-teacher text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">Workshop Webhooks</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">GitHub webhook for updating workshop materials and static website.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-teal-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/webhooks/workshop</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fab fa-github text-teal-500 mr-2"></i>
+                            <span>GitHub integration</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-sync text-teal-500 mr-2"></i>
+                            <span>Auto deployment</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <span class="inline-flex items-center bg-gray-100 text-gray-600 font-medium py-2 px-4 rounded-lg">
+                            <i class="fas fa-cog mr-2"></i>
+                            System Service
+                        </span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- API Health -->
+            <div class="bg-white rounded-lg shadow-md hover:shadow-lg transition-shadow duration-300 overflow-hidden">
+                <div class="bg-indigo-500 p-4">
+                    <div class="flex items-center">
+                        <i class="fas fa-heartbeat text-white text-2xl mr-3"></i>
+                        <h2 class="text-xl font-bold text-white">API Health</h2>
+                    </div>
+                </div>
+                <div class="p-6">
+                    <p class="text-gray-600 mb-4">Monitor the health and status of all DIPY services.</p>
+                    <div class="space-y-2 text-sm">
+                        <div class="flex items-center">
+                            <i class="fas fa-link text-indigo-500 mr-2"></i>
+                            <code class="bg-gray-100 px-2 py-1 rounded text-xs">/services/*/healthcheck</code>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-chart-line text-indigo-500 mr-2"></i>
+                            <span>Service monitoring</span>
+                        </div>
+                        <div class="flex items-center">
+                            <i class="fas fa-exclamation-triangle text-indigo-500 mr-2"></i>
+                            <span>Error reporting</span>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <span class="inline-flex items-center bg-gray-100 text-gray-600 font-medium py-2 px-4 rounded-lg">
+                            <i class="fas fa-tools mr-2"></i>
+                            Monitoring
+                        </span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Status Overview -->
+        <div class="bg-white rounded-lg shadow-md p-6">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-2xl font-bold text-gray-800">System Status</h2>
+                <div class="flex items-center">
+                    <div class="w-3 h-3 bg-green-500 rounded-full mr-2 animate-pulse"></div>
+                    <span class="text-green-600 font-semibold">All Systems Operational</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="text-center p-4 bg-green-50 rounded-lg">
+                    <i class="fas fa-server text-green-500 text-2xl mb-2"></i>
+                    <h3 class="font-semibold text-gray-800">Server Status</h3>
+                    <p class="text-green-600 font-medium">Online</p>
+                </div>
+                <div class="text-center p-4 bg-blue-50 rounded-lg">
+                    <i class="fas fa-database text-blue-500 text-2xl mb-2"></i>
+                    <h3 class="font-semibold text-gray-800">Database</h3>
+                    <p class="text-blue-600 font-medium">Connected</p>
+                </div>
+                <div class="text-center p-4 bg-purple-50 rounded-lg">
+                    <i class="fas fa-shield-alt text-purple-500 text-2xl mb-2"></i>
+                    <h3 class="font-semibold text-gray-800">Security</h3>
+                    <p class="text-purple-600 font-medium">Protected</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Quick Links -->
+        <div class="mt-8 text-center">
+            <h3 class="text-lg font-semibold text-gray-800 mb-4">Quick Links</h3>
+            <div class="flex flex-wrap justify-center gap-4">
+                <a href="/services/certificates/" class="inline-flex items-center bg-blue-500 hover:bg-blue-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-certificate mr-2"></i>
+                    Certificates
+                </a>
+                <a href="/services/sponsors/" class="inline-flex items-center bg-green-500 hover:bg-green-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-heart mr-2"></i>
+                    Sponsor DIPY
+                </a>
+                <a href="https://github.com/dipy/dipy" target="_blank" class="inline-flex items-center bg-gray-800 hover:bg-gray-900 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <i class="fab fa-github mr-2"></i>
+                    GitHub
+                </a>
+                <a href="https://dipy.org" target="_blank" class="inline-flex items-center bg-indigo-500 hover:bg-indigo-600 text-white font-medium py-2 px-4 rounded-lg transition-colors">
+                    <i class="fas fa-globe mr-2"></i>
+                    Website
+                </a>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <div class="mt-12 text-center text-gray-500">
+            <p>&copy; 2024 DIPY Community. All services are maintained by the DIPY development team.</p>
+            <p class="mt-2 text-sm">Built with FastAPI and Tailwind CSS</p>
+        </div>
+    </div>
 </body>
 </html>

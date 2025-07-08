@@ -2,7 +2,9 @@ from dotenv import load_dotenv
 import pathlib
 import uvicorn
 import re  # Import regex module
-from fastapi import FastAPI, Request, Form, HTTPException, Header, APIRouter
+from fastapi import (
+    FastAPI, Request, Form, HTTPException, Header, APIRouter, Depends, status
+)
 from fastapi.responses import HTMLResponse, FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -14,7 +16,17 @@ import hashlib
 import json
 import subprocess
 import os
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from datetime import datetime
 
+# Import authentication and database modules
+from auth_router import auth_router
+from database import init_db, get_db
+from auth import verify_token
+from models import Sponsorship
+from flexpay import create_flexpay_session, verify_flexpay_payment, execute_flexpay_payment
+from github_sponsors import mark_github_user_as_sponsor
 
 # Load environment variables from the .env file
 load_dotenv()
@@ -35,6 +47,11 @@ GITHUB_SECRET = os.getenv("GITHUB_WEBHOOK_SECRET")
 UPDATE_LAB_SCRIPT_PATH = pathlib.Path("update_lab_website.sh")
 UPDATE_WORKSHOP_SCRIPT_PATH = pathlib.Path("update_workshop.sh")
 
+# Flexpay settings
+FLEXPAY_BASE_URL = os.getenv("FLEXPAY_BASE_URL")
+FLEXPAY_CLIENT_ID = os.getenv("FLEXPAY_API_KEY")
+FLEXPAY_CLIENT_SECRET = os.getenv("FLEXPAY_SECRET_KEY")
+
 # Create directories if they don't exist
 CERTIFICATES_DIR.mkdir(exist_ok=True)
 STATIC_DIR.mkdir(exist_ok=True)
@@ -47,6 +64,7 @@ app = FastAPI(title="DIPY Services server")
 # Prefixes here will be combined with the prefix in app.include_router
 certificates_router = APIRouter(prefix="/certificates", tags=["certificates"])
 webhooks_router = APIRouter(prefix="/webhooks", tags=["webhooks"])
+sponsors_router = APIRouter(prefix="/sponsors", tags=["sponsors"])
 
 
 def root_url_for(request: Request, name: str, **params):
@@ -56,6 +74,18 @@ def root_url_for(request: Request, name: str, **params):
 # Setup Jinja2 templates
 templates = Jinja2Templates(directory=TEMPLATES_DIR)
 templates.env.globals["root_url_for"] = root_url_for
+
+
+# --- Database Initialization ---
+@app.on_event("startup")
+async def startup_event():
+    """Initialize database on startup"""
+    try:
+        await init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Error initializing database: {e}")
+        raise
 
 
 # --- Helper Functions ---
@@ -328,13 +358,13 @@ async def view_certificate_page(year: str, name_stem: str):
 # --- Webhook Helper Functions ---
 async def _run_update_script(script_path: pathlib.Path, webhook_name: str):
     try:
-        result = subprocess.run(
+        subprocess.run(
             ["stdbuf", "-oL", str(script_path.absolute())],
             # capture_output=True,
             # text=True,
             check=True
         )
-        print(f"Update script output ({script_path.name})")  # : {result.stdout}")
+        print(f"Update script output ({script_path.name})")
         return JSONResponse(
             content={
                 "status": "success",
@@ -438,6 +468,278 @@ async def github_webhook_workshop(
         request, payload, UPDATE_WORKSHOP_SCRIPT_PATH, "Workshop Website"
     )
 
+
+@sponsors_router.get("/", response_class=HTMLResponse)
+async def get_sponsors_page(request: Request, token: str = None, db: AsyncSession = Depends(get_db)):
+    """
+    Serve the sponsors page. If token is provided and user is already sponsored, show dashboard; otherwise, show payment options.
+    """
+    user = None
+    active_sponsorship = None
+    if token:
+        from auth import verify_token
+        from models import Sponsorship, User
+        payload = verify_token(token)
+        if payload:
+            user_id = int(payload["sub"])
+            result = await db.execute(
+                select(Sponsorship).where(Sponsorship.user_id == user_id)
+            )
+            sponsorships = result.scalars().all()
+            # Find active sponsorship
+            for s in sponsorships:
+                if s.payment_status == "completed":
+                    active_sponsorship = s
+                    break
+            result = await db.execute(select(User).where(User.id == user_id))
+            user = result.scalar_one_or_none()
+    context = {"request": request, "user": user, "active_sponsorship": active_sponsorship}
+    return templates.TemplateResponse("sponsors.html", context)
+
+
+@sponsors_router.get("/my-sponsorships", response_class=JSONResponse)
+async def get_user_sponsorships(
+    token: str,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Get current user's sponsorships.
+    """
+    # Verify token
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+    # Get user's sponsorships
+    result = await db.execute(
+        select(Sponsorship).where(Sponsorship.user_id == int(user_id))
+    )
+    sponsorships = result.scalars().all()
+
+    # Convert to dict for JSON response
+    sponsorship_list = []
+    for sponsorship in sponsorships:
+        created_at = (
+            sponsorship.created_at.isoformat()
+            if sponsorship.created_at else None
+        )
+        completed_at = (
+            sponsorship.completed_at.isoformat()
+            if sponsorship.completed_at else None
+        )
+        sponsorship_list.append({
+            "id": sponsorship.id,
+            "plan_type": sponsorship.plan_type,
+            "amount": sponsorship.amount,
+            "currency": sponsorship.currency,
+            "payment_status": sponsorship.payment_status,
+            "invoice_url": sponsorship.invoice_url,
+            "team_size": sponsorship.team_size,
+            "created_at": created_at,
+            "completed_at": completed_at
+        })
+
+    return sponsorship_list
+
+
+@sponsors_router.post("/create-payment-session", response_class=JSONResponse)
+async def create_payment_session(
+    plan_type: str = Form(...),
+    token: str = Form(...),
+    db: AsyncSession = Depends(get_db),
+    request: Request = None
+):
+    """
+    Create a FlexPay payment session for the logged-in user and selected plan.
+    Returns the FlexPay redirect URL.
+    """
+    from models import Sponsorship
+    from auth import verify_token
+
+    # Validate token
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    user_id = int(payload["sub"])
+    user_email = payload["email"]
+
+    # Plan details
+    if plan_type == "individual":
+        amount = 49.0
+        team_size = 1
+    elif plan_type == "team":
+        amount = 350.0
+        team_size = 5
+    else:
+        raise HTTPException(status_code=400, detail="Invalid plan type")
+
+    # Create Sponsorship record (pending)
+    sponsorship = Sponsorship(
+        user_id=user_id,
+        plan_type=plan_type,
+        amount=amount,
+        team_size=team_size,
+        payment_status="pending"
+    )
+    db.add(sponsorship)
+    await db.commit()
+    await db.refresh(sponsorship)
+
+    # URLs for FlexPay
+    base_url = str(request.base_url).rstrip("/")
+    # The return URL is where FlexPay will redirect after authorization
+    return_url = (
+        f"{base_url}/services/sponsors/payment-success?"
+        f"sponsorship_id={sponsorship.id}"
+    )
+
+    # Create FlexPay session
+    session = await create_flexpay_session(
+        amount=amount,
+        currency="USD",
+        user_email=user_email,
+        plan_type=plan_type,
+        user_id=user_id,
+        success_url=return_url,  # Only one return URL for authorization
+        cancel_url=return_url    # Use same for cancel for now
+    )
+    # Store TransactionRequestId as payment_id
+    sponsorship.payment_id = session.get("TransactionRequestId") or session.get("id")
+    await db.commit()
+
+    if not session.get("PaymentsReady", {}).get("CCP", False):
+        # Payment is not ready, return a notification message for the frontend
+        return JSONResponse({"notification": "Payment system is not ready. Please try again later."}, status_code=503)
+
+    return {"redirect_url": session["FlexPayRedirectUrl"]}
+
+
+@sponsors_router.get("/payment-success", response_class=HTMLResponse)
+async def payment_success(
+    sponsorship_id: int,
+    request: Request,  # Add request parameter
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle FlexPay success redirect, verify payment, and update sponsorship.
+    Implements the new FlexPay flow: check status, then execute if authorized.
+    """
+    from models import Sponsorship, User
+    sponsorship = await db.get(Sponsorship, sponsorship_id)
+    if not sponsorship:
+        return HTMLResponse("Sponsorship not found.", status_code=404)
+    
+    # Step 1: Check authorization status
+    payment_info = await verify_flexpay_payment(sponsorship.payment_id)
+    print(f"Payment info: {payment_info}")
+    status = payment_info.get("CreateResponse", {}).get("TransactionRequestStatus", "")
+    
+    if status.lower() == "authorized":
+        # Step 2: Execute the payment
+        try:
+            exec_result = await execute_flexpay_payment(sponsorship.payment_id)
+            print(f"Exec result: {exec_result}")
+            
+            sponsorship.payment_status = "completed"
+            sponsorship.completed_at = datetime.utcnow()
+            sponsorship.invoice_url = exec_result.get("invoice_url")
+            sponsorship.transaction_id = exec_result.get("TransactionId", [])[0] if exec_result.get("TransactionId") else ""
+            
+            # Mark GitHub user as sponsor if applicable
+            user = await db.get(User, sponsorship.user_id)
+            if user and user.github_id:
+                sponsor_info = await mark_github_user_as_sponsor(user.github_id)
+                sponsorship.github_sponsor_id = sponsor_info.get("id")
+            
+            await db.commit()
+            message = "Thank you for your sponsorship! Payment completed."
+        except Exception as e:
+            print(f"Payment execution failed: {e}")
+            message = f"Payment execution failed: {e}"
+    elif status.lower() == "completed":
+        # Already executed (idempotency)
+        sponsorship.payment_status = "completed"
+        sponsorship.completed_at = datetime.utcnow()
+        sponsorship.invoice_url = payment_info.get("invoice_url")
+        sponsorship.transaction_id = payment_info.get("TransactionId") or payment_info.get("id")
+        await db.commit()
+        message = "Thank you for your sponsorship! Payment completed."
+    else:
+        message = f"Payment not completed. Status: {status}"
+    
+    is_error = 'failed' in message.lower() or 'not completed' in message.lower()
+    return templates.TemplateResponse(
+        "sponsor_thank_you.html",
+        {
+            "request": request,
+            "message": message,
+            "is_error": is_error
+        }
+    )
+
+
+@sponsors_router.get("/payment-cancel", response_class=HTMLResponse)
+async def payment_cancel(
+    sponsorship_id: int,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Handle FlexPay cancel redirect.
+    """
+    from models import Sponsorship
+    sponsorship = await db.get(Sponsorship, sponsorship_id)
+    if sponsorship:
+        sponsorship.payment_status = "cancelled"
+        await db.commit()
+    return HTMLResponse("<h2>Payment was cancelled.</h2>")
+
+
+@sponsors_router.post("/flexpay-webhook", response_class=JSONResponse)
+async def flexpay_webhook(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Handle FlexPay webhook events to update sponsorship payment status.
+    """
+    from models import Sponsorship, User
+    payload = await request.json()
+    payment_id = payload.get("id") or payload.get("payment_id")
+    status = payload.get("status")
+    invoice_url = payload.get("invoice_url")
+
+    if not payment_id or not status:
+        return JSONResponse({"error": "Missing payment_id or status"}, status_code=400)
+
+    # Find the sponsorship by payment_id
+    result = await db.execute(
+        select(Sponsorship).where(Sponsorship.payment_id == payment_id)
+    )
+    sponsorship = result.scalar_one_or_none()
+    if not sponsorship:
+        return JSONResponse({"error": "Sponsorship not found"}, status_code=404)
+
+    sponsorship.payment_status = status
+    if status == "completed":
+        sponsorship.completed_at = datetime.utcnow()
+        sponsorship.invoice_url = invoice_url
+        # Mark GitHub user as sponsor if applicable
+        user = await db.get(User, sponsorship.user_id)
+        if user and user.github_id:
+            sponsor_info = await mark_github_user_as_sponsor(user.github_id)
+            sponsorship.github_sponsor_id = sponsor_info.get("id")
+    await db.commit()
+
+    return {"status": "ok"}
+
+
 # Include the routers in the main app
 # All routes in certificates_router will be prefixed with /services
 # e.g. /services/certificates/home
@@ -445,6 +747,9 @@ app.include_router(certificates_router, prefix="/services")
 # All routes in webhooks_router will be prefixed with /services
 # e.g. /services/webhooks/lab
 app.include_router(webhooks_router, prefix="/services")
+app.include_router(sponsors_router, prefix="/services")
+# Include authentication router
+app.include_router(auth_router, prefix="/services")
 
 
 @app.get("/services", response_class=HTMLResponse)
@@ -481,5 +786,5 @@ if __name__ == "__main__":
         print(f"Warning: Certificate directory '{CERTIFICATES_DIR}' is empty.")
 
     uvicorn.run(
-        "main:app", host="0.0.0.0", port=8000, reload=False
+        "main:app", host="0.0.0.0", port=8000, reload=True
     )
