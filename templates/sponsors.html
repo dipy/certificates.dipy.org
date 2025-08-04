@@ -255,6 +255,10 @@
         function openLoginModal(plan) {
             document.getElementById('login-modal').classList.remove('hidden');
             window.selectedPlan = plan || null;
+            // Store the selected plan in localStorage so it persists after login redirect
+            if (plan) {
+                localStorage.setItem('selected_plan', plan);
+            }
         }
         function closeLoginModal() {
             document.getElementById('login-modal').classList.add('hidden');
@@ -334,10 +338,24 @@
                 // Store token and show user as logged in
                 localStorage.setItem('auth_token', token);
                 showLoggedInUser(token);
+                
+                // Check if user was trying to make a payment before login
+                const selectedPlan = localStorage.getItem('selected_plan');
+                if (selectedPlan) {
+                    // Clear the stored plan
+                    localStorage.removeItem('selected_plan');
+                    // Automatically start payment flow
+                    setTimeout(() => {
+                        startPayment(selectedPlan);
+                    }, 1000); // Small delay to let UI update
+                }
+                
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else if (error) {
                 alert('Authentication failed: ' + error);
+                // Clear any stored plan on error
+                localStorage.removeItem('selected_plan');
                 // Clean up URL
                 window.history.replaceState({}, document.title, window.location.pathname);
             } else {

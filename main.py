@@ -626,20 +626,8 @@ async def create_payment_session(
     if not transaction_request_id:
         return JSONResponse({"notification": "Could not get transaction ID from FlexPay.", "type": "error"}, status_code=500)
 
-    # Create a temporary sponsorship record to store the TransactionRequestId
-    # This will be updated to completed status only after successful payment
-    temp_sponsorship = Sponsorship(
-        user_id=user_id,
-        plan_type=plan_type,
-        amount=amount,
-        team_size=team_size,
-        payment_status="pending",
-        payment_id=transaction_request_id
-    )
-    db.add(temp_sponsorship)
-    await db.commit()
-    await db.refresh(temp_sponsorship)
-
+    # Don't create any database record yet - we'll create it only after successful payment
+    # Just return the redirect URL for the payment iframe
     return {"redirect_url": session["FlexPayRedirectUrl"]}
 
 
@@ -654,38 +642,76 @@ async def payment_success(
     db: AsyncSession = Depends(get_db)
 ):
     """
-    Handle FlexPay success redirect, verify payment, and update sponsorship record only after successful payment.
+    Handle FlexPay success redirect, verify payment, and create sponsorship record only after successful payment.
     """
     from models import Sponsorship, User
     
-    # Find the existing pending sponsorship record
+    # Check if we already have a sponsorship record for this transaction
     result = await db.execute(
-        select(Sponsorship).where(
-            Sponsorship.payment_id == transaction_id,
-            Sponsorship.payment_status == "pending"
-        )
+        select(Sponsorship).where(Sponsorship.payment_id == transaction_id)
     )
-    sponsorship = result.scalar_one_or_none()
+    existing_sponsorship = result.scalar_one_or_none()
     
-    if not sponsorship:
-        return HTMLResponse("Sponsorship not found or already processed.", status_code=404)
-    
-    # Step 1: Check authorization status using the TransactionRequestId
-    payment_info = await verify_flexpay_payment(transaction_id)
-    print(f"Payment info: {payment_info}")
-    status = payment_info.get("CreateResponse", {}).get("TransactionRequestStatus", "")
-    
-    if status.lower() == "authorized":
-        # Step 2: Execute the payment
-        try:
-            exec_result = await execute_flexpay_payment(transaction_id)
-            print(f"Exec result: {exec_result}")
-            
-            # Update the existing sponsorship record to completed
-            sponsorship.payment_status = "completed"
-            sponsorship.completed_at = datetime.utcnow()
-            sponsorship.invoice_url = exec_result.get("invoice_url")
-            sponsorship.transaction_id = exec_result.get("TransactionId", [])[0] if exec_result.get("TransactionId") else ""
+    if existing_sponsorship:
+        # Already processed this transaction
+        if existing_sponsorship.payment_status == "completed":
+            message = "Thank you for your sponsorship! Payment already processed."
+            is_error = False
+        else:
+            message = f"Payment not completed. Status: {existing_sponsorship.payment_status}"
+            is_error = True
+    else:
+        # Step 1: Check authorization status using the TransactionRequestId
+        payment_info = await verify_flexpay_payment(transaction_id)
+        print(f"Payment info: {payment_info}")
+        status = payment_info.get("CreateResponse", {}).get("TransactionRequestStatus", "")
+        
+        if status.lower() == "authorized":
+            # Step 2: Execute the payment
+            try:
+                exec_result = await execute_flexpay_payment(transaction_id)
+                print(f"Exec result: {exec_result}")
+                
+                # Create new sponsorship record only after successful payment
+                sponsorship = Sponsorship(
+                    user_id=user_id,
+                    plan_type=plan_type,
+                    amount=amount,
+                    team_size=team_size,
+                    payment_status="completed",
+                    payment_id=transaction_id,
+                    completed_at=datetime.utcnow(),
+                    invoice_url=exec_result.get("invoice_url"),
+                    transaction_id=exec_result.get("TransactionId", [])[0] if exec_result.get("TransactionId") else ""
+                )
+                
+                # Mark GitHub user as sponsor if applicable
+                user = await db.get(User, user_id)
+                if user and user.github_id:
+                    sponsor_info = await mark_github_user_as_sponsor(user.github_id)
+                    sponsorship.github_sponsor_id = sponsor_info.get("id")
+                
+                db.add(sponsorship)
+                await db.commit()
+                message = "Thank you for your sponsorship! Payment completed."
+                is_error = False
+            except Exception as e:
+                print(f"Payment execution failed: {e}")
+                message = f"Payment execution failed: {e}"
+                is_error = True
+        elif status.lower() == "completed":
+            # Already executed (idempotency) - create the sponsorship record
+            sponsorship = Sponsorship(
+                user_id=user_id,
+                plan_type=plan_type,
+                amount=amount,
+                team_size=team_size,
+                payment_status="completed",
+                payment_id=transaction_id,
+                completed_at=datetime.utcnow(),
+                invoice_url=payment_info.get("invoice_url"),
+                transaction_id=payment_info.get("TransactionId") or payment_info.get("id")
+            )
             
             # Mark GitHub user as sponsor if applicable
             user = await db.get(User, user_id)
@@ -693,30 +719,14 @@ async def payment_success(
                 sponsor_info = await mark_github_user_as_sponsor(user.github_id)
                 sponsorship.github_sponsor_id = sponsor_info.get("id")
             
+            db.add(sponsorship)
             await db.commit()
             message = "Thank you for your sponsorship! Payment completed."
-        except Exception as e:
-            print(f"Payment execution failed: {e}")
-            message = f"Payment execution failed: {e}"
-    elif status.lower() == "completed":
-        # Already executed (idempotency) - update the sponsorship record
-        sponsorship.payment_status = "completed"
-        sponsorship.completed_at = datetime.utcnow()
-        sponsorship.invoice_url = payment_info.get("invoice_url")
-        sponsorship.transaction_id = payment_info.get("TransactionId") or payment_info.get("id")
-        
-        # Mark GitHub user as sponsor if applicable
-        user = await db.get(User, user_id)
-        if user and user.github_id:
-            sponsor_info = await mark_github_user_as_sponsor(user.github_id)
-            sponsorship.github_sponsor_id = sponsor_info.get("id")
-        
-        await db.commit()
-        message = "Thank you for your sponsorship! Payment completed."
-    else:
-        message = f"Payment not completed. Status: {status}"
+            is_error = False
+        else:
+            message = f"Payment not completed. Status: {status}"
+            is_error = True
     
-    is_error = 'failed' in message.lower() or 'not completed' in message.lower()
     return templates.TemplateResponse(
         "sponsor_thank_you.html",
         {
@@ -728,25 +738,27 @@ async def payment_success(
 
 
 @sponsors_router.get("/payment-cancel", response_class=HTMLResponse)
-async def payment_cancel(
-    sponsorship_id: int,
-    db: AsyncSession = Depends(get_db)
-):
+async def payment_cancel(request: Request):
     """
     Handle FlexPay cancel redirect.
     """
-    from models import Sponsorship
-    sponsorship = await db.get(Sponsorship, sponsorship_id)
-    if sponsorship:
-        sponsorship.payment_status = "cancelled"
-        await db.commit()
-    return HTMLResponse("<h2>Payment was cancelled.</h2>")
+    # Since we don't create database records until payment succeeds, 
+    # there's nothing to update on cancellation
+    return templates.TemplateResponse(
+        "sponsor_thank_you.html",
+        {
+            "request": request,
+            "message": "Payment was cancelled. You can try again anytime.",
+            "is_error": False
+        }
+    )
 
 
 @sponsors_router.post("/flexpay-webhook", response_class=JSONResponse)
 async def flexpay_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     """
-    Handle FlexPay webhook events to update sponsorship payment status.
+    Handle FlexPay webhook events. Since we only create sponsorship records after successful payment verification,
+    this webhook mainly serves to acknowledge FlexPay notifications but doesn't create/update records.
     """
     from models import Sponsorship, User
     payload = await request.json()
@@ -757,24 +769,29 @@ async def flexpay_webhook(request: Request, db: AsyncSession = Depends(get_db)):
     if not payment_id or not status:
         return JSONResponse({"error": "Missing payment_id or status"}, status_code=400)
 
-    # Find the sponsorship by payment_id
+    # Check if we already have a sponsorship record for this payment
     result = await db.execute(
         select(Sponsorship).where(Sponsorship.payment_id == payment_id)
     )
     sponsorship = result.scalar_one_or_none()
-    if not sponsorship:
-        return JSONResponse({"error": "Sponsorship not found"}, status_code=404)
-
-    sponsorship.payment_status = status
-    if status == "completed":
+    
+    if sponsorship and status == "completed":
+        # Update existing sponsorship with webhook data
+        sponsorship.payment_status = status
         sponsorship.completed_at = datetime.utcnow()
         sponsorship.invoice_url = invoice_url
+        
         # Mark GitHub user as sponsor if applicable
         user = await db.get(User, sponsorship.user_id)
         if user and user.github_id:
             sponsor_info = await mark_github_user_as_sponsor(user.github_id)
             sponsorship.github_sponsor_id = sponsor_info.get("id")
-    await db.commit()
+        
+        await db.commit()
+    elif not sponsorship:
+        # No sponsorship record exists yet - this is expected in our new flow
+        # The sponsorship will be created when the user is redirected to payment-success
+        print(f"Webhook received for payment {payment_id} with status {status}, but no sponsorship record exists yet")
 
     return {"status": "ok"}
 
