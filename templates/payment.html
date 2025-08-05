@@ -1,0 +1,283 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Your DIPY Sponsorship</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-4xl mx-auto">
+            <!-- Header -->
+            <div class="text-center mb-8">
+                <img src="/services/certificates/static/dipy_logo.png" alt="DIPY Logo" class="mx-auto mb-4" style="max-width: 200px;">
+                <h1 class="text-3xl font-bold text-gray-800">Complete Your Sponsorship</h1>
+                <p class="text-gray-600 mt-2">Secure payment powered by IU FlexPay</p>
+            </div>
+
+            <!-- Main Content -->
+            <div class="bg-white rounded-lg shadow-lg overflow-hidden">
+                <div class="lg:flex">
+                    <!-- Left side - Plan Information -->
+                    <div class="lg:w-1/3 bg-gray-50 p-8">
+                        <h2 class="text-2xl font-bold mb-4" id="plan-title">{{ plan_type|title }} Plan</h2>
+                        <div class="mb-6">
+                            <span class="text-3xl font-bold text-green-600">${{ amount }}</span>
+                            <span class="text-gray-500 ml-2">USD</span>
+                        </div>
+                        
+                        <!-- Plan Features -->
+                        <div class="space-y-3 mb-8">
+                            {% if plan_type == 'individual' %}
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>One-time payment</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>For 1 user</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>Instant access</span>
+                                </div>
+                            {% else %}
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>One-time payment</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>For up to {{ team_size }} users</span>
+                                </div>
+                                <div class="flex items-center">
+                                    <svg class="w-5 h-5 text-green-500 mr-3" fill="currentColor" viewBox="0 0 20 20">
+                                        <path fill-rule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clip-rule="evenodd"></path>
+                                    </svg>
+                                    <span>Best value</span>
+                                </div>
+                            {% endif %}
+                        </div>
+
+                        <!-- Security Notice -->
+                        <div class="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                            <div class="flex items-start">
+                                <svg class="w-5 h-5 text-blue-500 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+                                    <path fill-rule="evenodd" d="M5 9V7a5 5 0 0110 0v2a2 2 0 012 2v5a2 2 0 01-2 2H5a2 2 0 01-2-2v-5a2 2 0 012-2zm8-2v2H7V7a3 3 0 016 0z" clip-rule="evenodd"></path>
+                                </svg>
+                                <div>
+                                    <h4 class="text-sm font-semibold text-blue-800">Secure Payment</h4>
+                                    <p class="text-xs text-blue-700 mt-1">Your payment information is encrypted and processed securely by IU FlexPay.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right side - Payment Form -->
+                    <div class="lg:w-2/3 p-8">
+                        <h3 class="text-xl font-semibold text-gray-800 mb-6">Payment Information</h3>
+                        
+                        <div id="form-container">
+                            <form hx-post="/services/sponsors/process-payment" 
+                                  hx-target="#form-container" 
+                                  hx-indicator="#submit-loading"
+                                  class="space-y-6">
+                            
+                            <!-- Hidden fields -->
+                            <input type="hidden" name="plan_type" value="{{ plan_type }}">
+                            <input type="hidden" name="user_id" value="{{ user_id }}">
+                            <input type="hidden" name="team_size" value="{{ team_size }}">
+                            <input type="hidden" name="token" value="{{ token }}">
+                            
+                            <!-- Cardholder Name -->
+                            <div>
+                                <label for="cardholder_name" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Cardholder Name
+                                </label>
+                                <input type="text" id="cardholder_name" name="cardholder_name" required
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                       placeholder="John Doe">
+                            </div>
+
+                            <!-- Card Number -->
+                            <div>
+                                <label for="card_number" class="block text-sm font-medium text-gray-700 mb-2">
+                                    Card Number
+                                </label>
+                                <input type="text" id="card_number" name="card_number" required maxlength="19"
+                                       class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                       placeholder="1234 5678 9012 3456">
+                                <div class="mt-2 flex space-x-2">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/5e/Visa_Inc._logo.svg" alt="Visa" class="h-6">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/2/2a/Mastercard-logo.svg" alt="Mastercard" class="h-6">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/3/30/American_Express_logo.svg" alt="American Express" class="h-6">
+                                    <img src="https://upload.wikimedia.org/wikipedia/commons/5/57/Discover_Card_logo.svg" alt="Discover" class="h-6">
+                                </div>
+                            </div>
+
+                            <!-- Expiry and CVC -->
+                            <div class="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label for="expiry_date" class="block text-sm font-medium text-gray-700 mb-2">
+                                        Expiry Date
+                                    </label>
+                                    <input type="text" id="expiry_date" name="expiry_date" required maxlength="5"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                           placeholder="MM/YY">
+                                </div>
+                                <div>
+                                    <label for="cvc" class="block text-sm font-medium text-gray-700 mb-2">
+                                        CVC
+                                    </label>
+                                    <input type="text" id="cvc" name="cvc" required maxlength="4"
+                                           class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                           placeholder="123">
+                                </div>
+                            </div>
+
+                            <!-- Billing Address -->
+                            <div class="border-t pt-6">
+                                <h4 class="text-lg font-medium text-gray-800 mb-4">Billing Address</h4>
+                                
+                                <div class="space-y-4">
+                                    <div>
+                                        <label for="address" class="block text-sm font-medium text-gray-700 mb-2">
+                                            Street Address
+                                        </label>
+                                        <input type="text" id="address" name="address" required
+                                               class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                               placeholder="123 Main Street">
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label for="city" class="block text-sm font-medium text-gray-700 mb-2">
+                                                City
+                                            </label>
+                                            <input type="text" id="city" name="city" required
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="New York">
+                                        </div>
+                                        <div>
+                                            <label for="state" class="block text-sm font-medium text-gray-700 mb-2">
+                                                State
+                                            </label>
+                                            <input type="text" id="state" name="state" required
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="NY">
+                                        </div>
+                                    </div>
+
+                                    <div class="grid grid-cols-2 gap-4">
+                                        <div>
+                                            <label for="zip" class="block text-sm font-medium text-gray-700 mb-2">
+                                                ZIP Code
+                                            </label>
+                                            <input type="text" id="zip" name="zip" required
+                                                   class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                                   placeholder="10001">
+                                        </div>
+                                        <div>
+                                            <label for="country" class="block text-sm font-medium text-gray-700 mb-2">
+                                                Country
+                                            </label>
+                                            <select id="country" name="country" required
+                                                    class="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                                <option value="US">United States</option>
+                                                <option value="CA">Canada</option>
+                                                <option value="GB">United Kingdom</option>
+                                                <option value="AU">Australia</option>
+                                                <option value="DE">Germany</option>
+                                                <option value="FR">France</option>
+                                                <option value="JP">Japan</option>
+                                                <option value="OTHER">Other</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Submit Button -->
+                            <div class="border-t pt-6">
+                                <button type="submit" 
+                                        class="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">
+                                    Complete Payment - ${{ amount }}
+                                </button>
+                                
+                                <!-- Loading indicator -->
+                                <div id="submit-loading" class="htmx-indicator mt-4 text-center">
+                                    <div class="inline-flex items-center">
+                                        <svg class="animate-spin -ml-1 mr-3 h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                                            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                        Processing payment...
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Cancel Link -->
+                            <div class="text-center">
+                                <a href="/services/sponsors" class="text-gray-600 hover:text-gray-800 text-sm">
+                                    ← Back to Sponsors Page
+                                </a>
+                            </div>
+                            
+                            </form>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Minimal client-side formatting for better UX
+        document.addEventListener('DOMContentLoaded', function() {
+            // Format card number input
+            const cardNumber = document.getElementById('card_number');
+            if (cardNumber) {
+                cardNumber.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\s+/g, '').replace(/[^0-9]/gi, '');
+                    let formattedValue = value.match(/.{1,4}/g)?.join(' ') || value;
+                    if (formattedValue !== e.target.value) {
+                        e.target.value = formattedValue;
+                    }
+                });
+            }
+
+            // Format expiry date input
+            const expiryDate = document.getElementById('expiry_date');
+            if (expiryDate) {
+                expiryDate.addEventListener('input', function(e) {
+                    let value = e.target.value.replace(/\D/g, '');
+                    if (value.length >= 2) {
+                        value = value.substring(0, 2) + '/' + value.substring(2, 4);
+                    }
+                    e.target.value = value;
+                });
+            }
+
+            // Format CVC input (numbers only)
+            const cvc = document.getElementById('cvc');
+            if (cvc) {
+                cvc.addEventListener('input', function(e) {
+                    e.target.value = e.target.value.replace(/\D/g, '');
+                });
+            }
+        });
+    </script>
+</body>
+</html>

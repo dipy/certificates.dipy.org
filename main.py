@@ -25,7 +25,7 @@ from auth_router import auth_router
 from database import init_db, get_db
 from auth import verify_token
 from models import Sponsorship
-from flexpay import create_flexpay_session, verify_flexpay_payment, execute_flexpay_payment
+from flexpay import verify_flexpay_payment, execute_flexpay_payment
 from github_sponsors import mark_github_user_as_sponsor
 
 # Load environment variables from the .env file
@@ -552,16 +552,14 @@ async def get_user_sponsorships(
     return sponsorship_list
 
 
-@sponsors_router.post("/create-payment-session", response_class=JSONResponse)
-async def create_payment_session(
-    plan_type: str = Form(...),
-    token: str = Form(...),
-    db: AsyncSession = Depends(get_db),
-    request: Request = None
+@sponsors_router.get("/check-active-sponsorship", response_class=JSONResponse)
+async def check_active_sponsorship(
+    token: str,
+    plan_type: str,
+    db: AsyncSession = Depends(get_db)
 ):
     """
-    Create a FlexPay payment session for the logged-in user and selected plan.
-    Returns the FlexPay redirect URL or a warning if user already has active sponsorship of same type.
+    Check if user already has an active sponsorship of the same type.
     """
     from models import Sponsorship
     from auth import verify_token
@@ -572,7 +570,6 @@ async def create_payment_session(
     if not payload:
         raise HTTPException(status_code=401, detail="Invalid token")
     user_id = int(payload["sub"])
-    user_email = payload["email"]
 
     # Check if user already has an active sponsorship of the same plan type
     result = await db.execute(
@@ -582,7 +579,7 @@ async def create_payment_session(
         )
     )
     existing_sponsorships = result.scalars().all()
-    
+
     for sponsorship in existing_sponsorships:
         if sponsorship.completed_at:
             expiration_date = sponsorship.completed_at + timedelta(days=365)
@@ -592,6 +589,28 @@ async def create_payment_session(
                     "notification": f"You already have an active {plan_type} sponsorship that expires on {expiration_date.strftime('%m/%d/%Y')}. Please wait for it to expire or choose a different plan type.",
                     "type": "warning"
                 }, status_code=400)
+
+    return {"status": "ok"}
+
+
+@sponsors_router.get("/payment", response_class=HTMLResponse)
+async def payment_page(
+    plan_type: str,
+    token: str,
+    request: Request,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Show the payment page with credit card form.
+    """
+    from auth import verify_token
+
+    # Validate token
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id = int(payload["sub"])
 
     # Plan details
     if plan_type == "individual":
@@ -603,36 +622,233 @@ async def create_payment_session(
     else:
         raise HTTPException(status_code=400, detail="Invalid plan type")
 
-    # Create FlexPay session first to get the TransactionRequestId
-    base_url = str(request.base_url).rstrip("/")
-    
-    # Create FlexPay session
-    session = await create_flexpay_session(
-        amount=amount,
-        currency="USD",
-        user_email=user_email,
-        plan_type=plan_type,
-        user_id=user_id,
-        success_url=f"{base_url}/services/sponsors/payment-success?transaction_id={{TransactionRequestId}}&plan_type={plan_type}&user_id={user_id}&amount={amount}&team_size={team_size}",
-        cancel_url=f"{base_url}/services/sponsors/payment-cancel"
+    return templates.TemplateResponse(
+        "payment.html",
+        {
+            "request": request,
+            "plan_type": plan_type,
+            "amount": amount,
+            "team_size": team_size,
+            "user_id": user_id,
+            "token": token
+        }
     )
 
-    if not session.get("PaymentsReady", {}).get("CCP", False):
-        # Payment is not ready, return a notification message for the frontend
-        return JSONResponse({"notification": "Payment system is not ready. Please try again later.", "type": "error"}, status_code=503)
 
-    # Get the TransactionRequestId from the session
-    transaction_request_id = session.get("TransactionRequestId") or session.get("id")
-    if not transaction_request_id:
-        return JSONResponse({"notification": "Could not get transaction ID from FlexPay.", "type": "error"}, status_code=500)
+@sponsors_router.post("/start-payment", response_class=HTMLResponse)
+async def start_payment(
+    plan_type: str = Form(...),
+    request: Request = None
+):
+    """
+    Handle payment initiation - check login status and redirect appropriately.
+    """
+    import html
+    
+    # Validate plan_type to prevent injection
+    if plan_type not in ["individual", "team"]:
+        raise HTTPException(status_code=400, detail="Invalid plan type")
+    
+    # Escape the plan_type for safe injection into JavaScript
+    safe_plan_type = html.escape(plan_type)
+    
+    # Return JavaScript that opens the login modal
+    return HTMLResponse(f'''
+        <script>
+            // Store the selected plan for after login
+            localStorage.setItem('selected_plan', '{safe_plan_type}');
+            // Open login modal
+            document.getElementById('login-modal').classList.remove('hidden');
+        </script>
+    ''')
 
-    # Don't create any database record yet - we'll create it only after successful payment
-    # Just return the redirect URL for the payment iframe
-    return {"redirect_url": session["FlexPayRedirectUrl"]}
+
+@sponsors_router.get("/load-page-data", response_class=JSONResponse)
+async def load_page_data(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Load sponsors page data - return JSON for secure client-side rendering.
+    """
+    # Get sponsors list
+    sponsors_data = await list_sponsors(db)
+    
+    # Return JSON data instead of HTML to avoid XSS
+    return JSONResponse({
+        "current_sponsors": sponsors_data["current"],
+        "past_sponsors": sponsors_data["past"]
+    })
 
 
-@sponsors_router.get("/payment-success", response_class=HTMLResponse)
-async def payment_success(
+@sponsors_router.post("/process-payment", response_class=HTMLResponse)
+async def process_payment(
+    request: Request,
+    cardholder_name: str = Form(...),
+    card_number: str = Form(...),
+    expiry_date: str = Form(...),
+    cvc: str = Form(...),
+    address: str = Form(...),
+    city: str = Form(...),
+    state: str = Form(...),
+    zip: str = Form(...),
+    country: str = Form(...),
+    plan_type: str = Form(...),
+    user_id: int = Form(...),
+    team_size: int = Form(...),
+    token: str = Form(...),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Process payment using FlexPay CCT Create/Execute APIs.
+    """
+    from models import Sponsorship, User
+    from auth import verify_token
+    from datetime import datetime
+    import uuid
+    import httpx
+
+    # Validate token
+    payload = verify_token(token)
+    if not payload:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    if int(payload["sub"]) != user_id:
+        raise HTTPException(status_code=401, detail="Token doesn't match user")
+
+    user_email = payload["email"]
+
+    # Plan details
+    if plan_type == "individual":
+        amount = 49.0
+    elif plan_type == "team":
+        amount = 350.0
+    else:
+        raise HTTPException(status_code=400, detail="Invalid plan type")
+
+    try:
+        # Step 1: Create CCT Charge Request
+        client_transaction_number = str(uuid.uuid4())
+
+        # For demo purposes - in real implementation, you'd process the credit card
+        # through a real payment processor and get a CreditCardRefID
+        credit_card_ref_id = f"CC{uuid.uuid4().hex[:8].upper()}"
+        credit_card_type = "Visa"  # Detect from card number in real implementation
+
+        create_payload = {
+            "Operator": "dipy_system",
+            "ClientTransactionNumber": client_transaction_number,
+            "PatronType": "Third Party",
+            "PatronIdentifier": user_email,
+            "Amount": str(amount),
+            "CreditCardRefID": credit_card_ref_id,
+            "CreditCardType": credit_card_type
+        }
+
+        # Call FlexPay CCT Create API
+        async with httpx.AsyncClient() as client:
+            create_response = await client.post(
+                f"{FLEXPAY_BASE_URL}/api/v1/cctrm/charge/create",
+                json=create_payload,
+                headers={
+                    "Authorization": f"Bearer {FLEXPAY_CLIENT_ID}:{FLEXPAY_CLIENT_SECRET}",
+                    "Content-Type": "application/json"
+                }
+            )
+
+            if create_response.status_code != 200:
+                print(f"FlexPay Create failed: {create_response.text}")
+                return JSONResponse({
+                    "success": False,
+                    "message": "Payment processing failed. Please try again."
+                }, status_code=400)
+
+            create_result = create_response.json()
+            transaction_request_id = create_result.get("TransactionRequestID")
+
+            if not transaction_request_id:
+                print(f"No TransactionRequestID returned: {create_result}")
+                return JSONResponse({
+                    "success": False,
+                    "message": "Payment processing failed. Please try again."
+                }, status_code=400)
+
+        # Step 2: Execute CCT Charge
+        execute_payload = {
+            "TransactionRequestId": transaction_request_id
+        }
+
+        async with httpx.AsyncClient() as client:
+            execute_response = await client.post(
+                f"{FLEXPAY_BASE_URL}/api/v1/cctrm/charge/execute",
+                json=execute_payload,
+                headers={
+                    "Authorization": f"Bearer {FLEXPAY_CLIENT_ID}:{FLEXPAY_CLIENT_SECRET}",
+                    "Content-Type": "application/json"
+                }
+            )
+
+            if execute_response.status_code != 200:
+                print(f"FlexPay Execute failed: {execute_response.text}")
+                return JSONResponse({
+                    "success": False,
+                    "message": "Payment execution failed. Please try again."
+                }, status_code=400)
+
+            execute_result = execute_response.json()
+            transaction_id = execute_result.get("TransactionId")
+            transaction_status = execute_result.get("TransactionStatus")
+
+            if transaction_status != "Completed":
+                print(f"Payment not completed: {execute_result}")
+                return JSONResponse({
+                    "success": False,
+                    "message": f"Payment failed with status: {transaction_status}"
+                }, status_code=400)
+
+        # Step 3: Create sponsorship record after successful payment
+        sponsorship = Sponsorship(
+            user_id=user_id,
+            plan_type=plan_type,
+            amount=amount,
+            team_size=team_size,
+            payment_status="completed",
+            payment_id=transaction_request_id,
+            transaction_id=transaction_id,
+            completed_at=datetime.utcnow()
+        )
+
+        # Mark GitHub user as sponsor if applicable
+        user = await db.get(User, user_id)
+        if user and user.github_id:
+            sponsor_info = await mark_github_user_as_sponsor(user.github_id)
+            sponsorship.github_sponsor_id = sponsor_info.get("id")
+
+        db.add(sponsorship)
+        await db.commit()
+
+        # Return success HTML that redirects to sponsors page
+        import urllib.parse
+        message = urllib.parse.quote('Thank you for your sponsorship! Payment completed successfully.')
+        return HTMLResponse(f'''
+            <script>
+                window.location.href = "/services/sponsors?success=1&message={message}";
+            </script>
+        ''')
+
+    except Exception as e:
+        print(f"Payment processing error: {e}")
+        # Return error message in form
+        return templates.TemplateResponse(
+            "payment_error.html",
+            {
+                "request": request if 'request' in locals() else None,
+                "error_message": "An error occurred while processing your payment. Please try again.",
+                "plan_type": plan_type,
+                "amount": amount
+            }
+        )
+
+
+@sponsors_router.get("/public-payment", response_class=HTMLResponse)
+async def public_payment(
     transaction_id: str,
     plan_type: str,
     user_id: int,
@@ -642,16 +858,17 @@ async def payment_success(
     db: AsyncSession = Depends(get_db)
 ):
     """
+    Public payment endpoint (kept for future use, not currently connected to the new flow).
     Handle FlexPay success redirect, verify payment, and create sponsorship record only after successful payment.
     """
     from models import Sponsorship, User
-    
+
     # Check if we already have a sponsorship record for this transaction
     result = await db.execute(
         select(Sponsorship).where(Sponsorship.payment_id == transaction_id)
     )
     existing_sponsorship = result.scalar_one_or_none()
-    
+
     if existing_sponsorship:
         # Already processed this transaction
         if existing_sponsorship.payment_status == "completed":
@@ -665,13 +882,13 @@ async def payment_success(
         payment_info = await verify_flexpay_payment(transaction_id)
         print(f"Payment info: {payment_info}")
         status = payment_info.get("CreateResponse", {}).get("TransactionRequestStatus", "")
-        
+
         if status.lower() == "authorized":
             # Step 2: Execute the payment
             try:
                 exec_result = await execute_flexpay_payment(transaction_id)
                 print(f"Exec result: {exec_result}")
-                
+
                 # Create new sponsorship record only after successful payment
                 sponsorship = Sponsorship(
                     user_id=user_id,
@@ -684,13 +901,13 @@ async def payment_success(
                     invoice_url=exec_result.get("invoice_url"),
                     transaction_id=exec_result.get("TransactionId", [])[0] if exec_result.get("TransactionId") else ""
                 )
-                
+
                 # Mark GitHub user as sponsor if applicable
                 user = await db.get(User, user_id)
                 if user and user.github_id:
                     sponsor_info = await mark_github_user_as_sponsor(user.github_id)
                     sponsorship.github_sponsor_id = sponsor_info.get("id")
-                
+
                 db.add(sponsorship)
                 await db.commit()
                 message = "Thank you for your sponsorship! Payment completed."
@@ -712,13 +929,13 @@ async def payment_success(
                 invoice_url=payment_info.get("invoice_url"),
                 transaction_id=payment_info.get("TransactionId") or payment_info.get("id")
             )
-            
+
             # Mark GitHub user as sponsor if applicable
             user = await db.get(User, user_id)
             if user and user.github_id:
                 sponsor_info = await mark_github_user_as_sponsor(user.github_id)
                 sponsorship.github_sponsor_id = sponsor_info.get("id")
-            
+
             db.add(sponsorship)
             await db.commit()
             message = "Thank you for your sponsorship! Payment completed."
@@ -726,7 +943,7 @@ async def payment_success(
         else:
             message = f"Payment not completed. Status: {status}"
             is_error = True
-    
+
     return templates.TemplateResponse(
         "sponsor_thank_you.html",
         {
@@ -742,7 +959,7 @@ async def payment_cancel(request: Request):
     """
     Handle FlexPay cancel redirect.
     """
-    # Since we don't create database records until payment succeeds, 
+    # Since we don't create database records until payment succeeds,
     # there's nothing to update on cancellation
     return templates.TemplateResponse(
         "sponsor_thank_you.html",
@@ -774,19 +991,19 @@ async def flexpay_webhook(request: Request, db: AsyncSession = Depends(get_db)):
         select(Sponsorship).where(Sponsorship.payment_id == payment_id)
     )
     sponsorship = result.scalar_one_or_none()
-    
+
     if sponsorship and status == "completed":
         # Update existing sponsorship with webhook data
         sponsorship.payment_status = status
         sponsorship.completed_at = datetime.utcnow()
         sponsorship.invoice_url = invoice_url
-        
+
         # Mark GitHub user as sponsor if applicable
         user = await db.get(User, sponsorship.user_id)
         if user and user.github_id:
             sponsor_info = await mark_github_user_as_sponsor(user.github_id)
             sponsorship.github_sponsor_id = sponsor_info.get("id")
-        
+
         await db.commit()
     elif not sponsorship:
         # No sponsorship record exists yet - this is expected in our new flow
@@ -805,10 +1022,10 @@ async def list_sponsors(db: AsyncSession = Depends(get_db)):
     """
     from models import Sponsorship, User
     from datetime import datetime, timedelta
-    
+
     # Calculate 1 year ago from now
     one_year_ago = datetime.utcnow() - timedelta(days=365)
-    
+
     # Get all completed sponsorships
     result = await db.execute(
         select(Sponsorship, User)
@@ -816,7 +1033,7 @@ async def list_sponsors(db: AsyncSession = Depends(get_db)):
         .where(Sponsorship.payment_status == "completed")
     )
     rows = result.all()
-    
+
     # Map user_id to latest sponsorship
     user_latest = {}
     for sponsorship, user in rows:
@@ -826,16 +1043,16 @@ async def list_sponsors(db: AsyncSession = Depends(get_db)):
             )
         ):
             user_latest[user.id] = (sponsorship, user)
-    
+
     # Separate current and past sponsors based on 1-year expiration
     current_sponsors = []
     past_sponsors = []
-    
+
     for sponsorship, user in user_latest.values():
         if sponsorship.completed_at:
             expiration_date = sponsorship.completed_at + timedelta(days=365)
             is_current = expiration_date > datetime.utcnow()
-            
+
             sponsor_data = {
                 "github_username": user.github_username or user.username or user.email,
                 "github_avatar_url": user.avatar_url,
@@ -845,12 +1062,12 @@ async def list_sponsors(db: AsyncSession = Depends(get_db)):
                 "expiration_date": expiration_date.isoformat(),
                 "is_active": is_current
             }
-            
+
             if is_current:
                 current_sponsors.append(sponsor_data)
             else:
                 past_sponsors.append(sponsor_data)
-    
+
     return {"current": current_sponsors, "past": past_sponsors}
 
 
@@ -900,5 +1117,5 @@ if __name__ == "__main__":
         print(f"Warning: Certificate directory '{CERTIFICATES_DIR}' is empty.")
 
     uvicorn.run(
-        "main:app", host="0.0.0.0", port=8000, reload=True
+        "main:app", host="0.0.0.0", port=8003, reload=True
     )

@@ -1,0 +1,20 @@
+<div class="bg-red-50 border border-red-200 rounded-lg p-6 mb-6">
+    <div class="flex items-start">
+        <svg class="w-6 h-6 text-red-600 mr-3 mt-0.5 flex-shrink-0" fill="currentColor" viewBox="0 0 20 20">
+            <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clip-rule="evenodd"></path>
+        </svg>
+        <div>
+            <h3 class="text-lg font-semibold text-red-800 mb-2">Payment Failed</h3>
+            <p class="text-red-700">{{ error_message }}</p>
+        </div>
+    </div>
+</div>
+
+<div class="text-center">
+    <button onclick="window.location.reload()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-6 rounded-lg transition-colors mr-4">
+        Try Again
+    </button>
+    <a href="/services/sponsors" class="text-gray-600 hover:text-gray-800 font-medium">
+        Back to Sponsors Page
+    </a>
+</div>
