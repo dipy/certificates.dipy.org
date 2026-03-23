@@ -23,7 +23,7 @@ load_dotenv()
 CERTIFICATES_DIR = pathlib.Path("certificates")
 STATIC_DIR = pathlib.Path("static")
 TEMPLATES_DIR = pathlib.Path("templates")
-SUPPORTED_YEARS = list(range(2023, 2026))  # Years 2023, 2024, 2025
+SUPPORTED_YEARS = list(range(2023, 2027))  # Years 2023-2026
 LINKEDIN_CERT_URL = (
     "https://www.linkedin.com/profile/add?startTask=CERTIFICATION_NAME"
 )
